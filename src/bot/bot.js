@@ -16,10 +16,14 @@ class BotService {
 
     this.adminChatId = adminChatId;
     this.webAppUrl = webAppUrl || 'http://localhost:3000';
-    this.bot = new Telegraf(token);
-
-    this.registerHandlers();
-    this.isInitialized = true;
+    try {
+      this.bot = new Telegraf(token);
+      this.registerHandlers();
+      this.isInitialized = true;
+    } catch (err) {
+      console.warn('Telegram bot init error:', err.message);
+      return;
+    }
 
     // Only launch long polling if NOT running on Vercel Serverless
     if (!process.env.VERCEL) {

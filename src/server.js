@@ -14,7 +14,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static frontend files for the Mini App
+// Serve static frontend files for local development
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Telegram Webhook endpoint (for Vercel serverless)
@@ -31,23 +31,30 @@ app.post('/api/webhook', async (req, res) => {
   }
 });
 
-// API Routes
+// API Routes (mounted on both /api and / to handle all rewrite variants)
 app.use('/api', apiRoutes);
+app.use(apiRoutes);
 
-// Fallback to index.html for SPA/Mini App
-app.use((req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
-});
+// Fallback for local development
+if (!process.env.VERCEL) {
+  app.use((req, res) => {
+    res.sendFile(path.join(__dirname, '../public/index.html'));
+  });
+}
 
 // Auto-initialize for Vercel Serverless
-db.init(process.env.DATABASE_URL);
-bot.init(
-  process.env.BOT_TOKEN,
-  process.env.ADMIN_CHAT_ID,
-  process.env.WEBAPP_URL
-);
+try {
+  db.init(process.env.DATABASE_URL);
+  bot.init(
+    process.env.BOT_TOKEN,
+    process.env.ADMIN_CHAT_ID,
+    process.env.WEBAPP_URL
+  );
+} catch (e) {
+  console.warn('Init warning:', e.message);
+}
 
-// If running standalone (local development)
+// Standalone local development listener
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`🌐 [Web Server] http://localhost:${PORT} manzilida ishlamoqda`);
