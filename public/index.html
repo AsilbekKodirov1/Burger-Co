@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>BURGER & CO. — Craft Smash Burgers</title>
+  
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Typography: General Sans (Taste-skill approved) -->
+  <link rel="preconnect" href="https://api.fontshare.com">
+  <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
+  <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600,700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="app" class="app-container">
+    
+    <!-- Top Header Bar -->
+    <header class="site-header">
+      <div class="brand-block">
+        <span class="brand-tag">CRAFT SMASH JOINT</span>
+        <h1 class="brand-name">BURGER & CO.</h1>
+      </div>
+      <div class="header-status">
+        <span class="status-indicator"></span>
+        <span class="status-text">Oshxona ochiq</span>
+      </div>
+    </header>
+
+    <!-- Category Nav Filter -->
+    <nav class="category-nav" id="categoryNav">
+      <button class="cat-pill active" data-category="all">Hammasi</button>
+      <button class="cat-pill" data-category="burgers">Burgers</button>
+      <button class="cat-pill" data-category="sides">Garnirlar</button>
+      <button class="cat-pill" data-category="drinks">Ichimliklar</button>
+      <button class="cat-pill" data-category="sauces">Souslar</button>
+    </nav>
+
+    <!-- Main Menu Catalog -->
+    <main class="menu-section">
+      <div id="productGrid" class="product-grid">
+        <!-- Products will be dynamically rendered here -->
+        <div class="loading-state">
+          <div class="spinner"></div>
+          <p>Menyu yuklanmoqda...</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Floating Sticky Cart Bar (Shown when cart has items) -->
+    <div id="floatingCartBar" class="floating-cart-bar hidden">
+      <div class="cart-bar-left">
+        <span class="cart-count-badge" id="cartCountBadge">0</span>
+        <div class="cart-bar-text">
+          <span class="cart-bar-label">Savatcha</span>
+          <span class="cart-bar-total" id="cartBarTotal">0 so'm</span>
+        </div>
+      </div>
+      <button id="openCheckoutBtn" class="cart-bar-btn">
+        Buyurtma berish
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+
+    <!-- Checkout Drawer Modal -->
+    <div id="checkoutModal" class="checkout-modal">
+      <div class="modal-backdrop" id="modalBackdrop"></div>
+      <div class="modal-sheet">
+        <div class="sheet-drag-handle"></div>
+        
+        <div class="sheet-header">
+          <div>
+            <h2 class="sheet-title">Buyurtmani rasmiylashtirish</h2>
+            <p class="sheet-subtitle">Ma'lumotlarni to'ldiring va buyurtmani tasdiqlang</p>
+          </div>
+          <button id="closeModalBtn" class="close-btn" aria-label="Yopish">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <div class="sheet-body">
+          
+          <!-- Order Items Summary in Receipt Style -->
+          <div class="order-summary-block">
+            <div class="summary-header">
+              <span>Tanlangan taomlar</span>
+              <span id="summaryItemsCount">0 dona</span>
+            </div>
+            <div id="orderItemsList" class="order-items-list">
+              <!-- Rendered dynamically -->
+            </div>
+            <div class="summary-total-row">
+              <span>Jami to'lov:</span>
+              <strong id="summaryTotalSum">0 so'm</strong>
+            </div>
+          </div>
+
+          <!-- Customer Input Form -->
+          <form id="orderForm" class="order-form">
+            <div class="form-group">
+              <label for="customerName">Ismingiz *</label>
+              <input type="text" id="customerName" required placeholder="Masalan: Sardor Aliyev" autocomplete="name">
+            </div>
+
+            <div class="form-group">
+              <label for="customerPhone">Telefon raqamingiz *</label>
+              <input type="tel" id="customerPhone" required placeholder="+998 (90) 123-45-67" autocomplete="tel">
+            </div>
+
+            <div class="form-group">
+              <div class="label-with-action">
+                <label for="customerAddress">Yetkazib berish manzili *</label>
+                <button type="button" id="btnGeolocate" class="btn-geo-action">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/></svg>
+                  Joylashuvimni olish
+                </button>
+              </div>
+              <textarea id="customerAddress" required rows="2" placeholder="Toshkent sh., Yunusobod 4-mavze, 12-uy, 34-xonadon"></textarea>
+            </div>
+
+            <!-- Payment Method Selector -->
+            <div class="form-group">
+              <label>To'lov usuli *</label>
+              <div class="payment-selector">
+                <label class="payment-option selected">
+                  <input type="radio" name="paymentMethod" value="cash" checked>
+                  <div class="payment-card">
+                    <div class="pay-icon pay-cash-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
+                    </div>
+                    <div class="pay-info">
+                      <span class="pay-title">Naqd pul</span>
+                      <span class="pay-sub">Yetkazilganda to'lash</span>
+                    </div>
+                  </div>
+                </label>
+
+                <label class="payment-option">
+                  <input type="radio" name="paymentMethod" value="click">
+                  <div class="payment-card">
+                    <div class="pay-icon click-badge">Click</div>
+                    <div class="pay-info">
+                      <span class="pay-title">Click</span>
+                      <span class="pay-sub">Ilova orqali onlayn</span>
+                    </div>
+                  </div>
+                </label>
+
+                <label class="payment-option">
+                  <input type="radio" name="paymentMethod" value="payme">
+                  <div class="payment-card">
+                    <div class="pay-icon payme-badge">Payme</div>
+                    <div class="pay-info">
+                      <span class="pay-title">Payme</span>
+                      <span class="pay-sub">Ilova orqali onlayn</span>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="orderNotes">Kuryer yoki oshxona uchun izoh (ixtiyoriy)</label>
+              <input type="text" id="orderNotes" placeholder="Masalan: domofon kodi 45, piyozsiz bo'lsin...">
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" id="submitOrderBtn" class="btn-submit-order">
+              <span id="submitBtnText">BUYURTMANI TASDIQLASH</span>
+              <span id="submitBtnSum">0 so'm</span>
+            </button>
+          </form>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Success Screen Modal -->
+    <div id="successModal" class="success-modal hidden">
+      <div class="success-card">
+        <div class="success-icon-wrap">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </div>
+        <h2 class="success-title">Buyurtmangiz qabul qilindi!</h2>
+        <p class="success-sub">Buyurtma raqami: <strong id="successOrderNumber">#BG-000000</strong></p>
+        <p class="success-desc">Ma'lumotlar oshxonaga va adminga yuborildi. Tez orada taomlaringiz tayyorlanib, kuryer orqali yetkaziladi.</p>
+        
+        <div class="success-actions">
+          <button id="successDoneBtn" class="btn-success-done">Yangi buyurtma</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

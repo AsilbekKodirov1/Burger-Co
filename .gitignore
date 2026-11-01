@@ -1,0 +1,6 @@
+node_modules/
+.env
+data/
+.taste-skill/
+.DS_Store
+Thumbs.db
