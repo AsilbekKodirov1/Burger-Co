@@ -46,6 +46,17 @@ router.post('/orders', async (req, res) => {
     // Calculate total amount
     const totalAmount = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
 
+    let resolvedUserId = telegram_user_id || null;
+    let resolvedUsername = telegram_username || null;
+
+    if (!resolvedUserId && customer_phone) {
+      const matchedUser = await db.getUserByPhone(customer_phone);
+      if (matchedUser) {
+        resolvedUserId = matchedUser.telegram_id;
+        resolvedUsername = resolvedUsername || matchedUser.username;
+      }
+    }
+
     const orderData = {
       customer_name: customer_name.trim(),
       customer_phone: customer_phone.trim(),
@@ -54,8 +65,8 @@ router.post('/orders', async (req, res) => {
       total_amount: totalAmount,
       payment_method: payment_method || 'cash',
       notes: notes ? notes.trim() : '',
-      telegram_user_id: telegram_user_id || null,
-      telegram_username: telegram_username || null
+      telegram_user_id: resolvedUserId,
+      telegram_username: resolvedUsername
     };
 
     // Save to PostgreSQL (with fallback)

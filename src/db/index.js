@@ -208,6 +208,27 @@ class DatabaseService {
   }
 
   // --- USER METHODS ---
+  async getUserByPhone(phone) {
+    if (!phone) return null;
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (!cleanPhone) return null;
+    if (this.isPostgresConnected && this.pool) {
+      try {
+        const res = await this.pool.query(
+          "SELECT * FROM users WHERE REPLACE(REPLACE(phone_number, '+', ''), ' ', '') LIKE $1 LIMIT 1",
+          ['%' + cleanPhone.slice(-9)]
+        );
+        return res.rows[0] || null;
+      } catch (err) {
+        console.error('PostgreSQL getUserByPhone:', err.message);
+      }
+    }
+    return this.memoryUsers.find(u => {
+      const uClean = (u.phone_number || '').replace(/[^0-9]/g, '');
+      return uClean && cleanPhone && uClean.slice(-9) === cleanPhone.slice(-9);
+    }) || null;
+  }
+
   async getUser(telegramId) {
     const tid = Number(telegramId);
     if (this.isPostgresConnected && this.pool) {

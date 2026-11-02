@@ -377,10 +377,104 @@ orderForm.addEventListener('submit', async (e) => {
 successDoneBtn.addEventListener('click', () => {
   triggerHaptic('light');
   successModal.classList.add('hidden');
-  if (tg?.close) {
-    // Optionally close webapp or keep in menu
-  }
 });
+
+// ==========================================================================
+// Account & Order History Drawer
+// ==========================================================================
+const accountModal = document.getElementById('accountModal');
+const accountBackdrop = document.getElementById('accountBackdrop');
+const openAccountBtn = document.getElementById('openAccountBtn');
+const closeAccountBtn = document.getElementById('closeAccountBtn');
+
+const profileAvatar = document.getElementById('profileAvatar');
+const profileName = document.getElementById('profileName');
+const profileUsername = document.getElementById('profileUsername');
+const profilePhone = document.getElementById('profilePhone');
+const accountOrdersList = document.getElementById('accountOrdersList');
+
+function openAccountModal() {
+  triggerHaptic('medium');
+  loadAccountDetails();
+  accountModal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeAccountModal() {
+  accountModal.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+if (openAccountBtn) openAccountBtn.addEventListener('click', openAccountModal);
+if (closeAccountBtn) closeAccountBtn.addEventListener('click', closeAccountModal);
+if (accountBackdrop) accountBackdrop.addEventListener('click', closeAccountModal);
+
+async function loadAccountDetails() {
+  const user = tg?.initDataUnsafe?.user;
+  const userName = user ? [user.first_name, user.last_name].filter(Boolean).join(' ') : 'Hurmatli mijoz';
+  const userHandle = user?.username ? `@${user.username}` : '';
+  const initial = (user?.first_name || 'M')[0].toUpperCase();
+
+  profileAvatar.textContent = initial;
+  profileName.textContent = userName;
+  profileUsername.textContent = userHandle || 'Telegram foydalanuvchisi';
+
+  const telegramId = user?.id;
+
+  if (telegramId) {
+    try {
+      const userRes = await fetch(`/api/user/${telegramId}`);
+      const userData = await userRes.json();
+      if (userData.ok && userData.data?.phone_number) {
+        profilePhone.textContent = `📞 ${userData.data.phone_number}`;
+      } else {
+        profilePhone.textContent = 'Telefon raqam saqlanmagan';
+      }
+
+      // Load user orders
+      const ordersRes = await fetch(`/api/user/${telegramId}/orders`);
+      const ordersData = await ordersRes.json();
+      if (ordersData.ok && ordersData.data && ordersData.data.length > 0) {
+        renderAccountOrders(ordersData.data);
+      } else {
+        accountOrdersList.innerHTML = '<div class="loading-state"><p>Sizda hali buyurtmalar mavjud emas.</p></div>';
+      }
+    } catch (e) {
+      accountOrdersList.innerHTML = '<div class="loading-state"><p>Buyurtmalar tarixini yuklab bo\'lmadi.</p></div>';
+    }
+  } else {
+    profilePhone.textContent = 'Telegramdan tashqarida ochilgan';
+    accountOrdersList.innerHTML = '<div class="loading-state"><p>Buyurtmalar tarixini ko\'rish uchun ilovani Telegram bot orqali oching.</p></div>';
+  }
+}
+
+function renderAccountOrders(orders) {
+  accountOrdersList.innerHTML = orders.map(o => {
+    let statusClass = o.order_status || 'new';
+    let statusText = 'Kutilmoqda';
+    if (statusClass === 'accepted') statusText = '👨‍🍳 Tayyorlanmoqda';
+    if (statusClass === 'delivering') statusText = '🛵 Yetkazilmoqda';
+    if (statusClass === 'delivered') statusText = '🏁 Yetkazildi';
+    if (statusClass === 'cancelled') statusText = '❌ Bekor qilindi';
+
+    const itemsSummary = (o.items || []).map(i => `${i.quantity}x ${i.name}`).join(', ');
+    const dateStr = new Date(o.created_at).toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+    return `
+      <div class="history-card">
+        <div class="history-card-header">
+          <span class="history-order-num">#${o.order_number}</span>
+          <span class="history-status-badge ${statusClass}">${statusText}</span>
+        </div>
+        <p class="history-items">${itemsSummary}</p>
+        <div class="history-total-row">
+          <span style="font-size: 11px; color: var(--muted);">${dateStr}</span>
+          <span class="history-total-price">${formatSum(o.total_amount)}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
 
 // Bootstrapping
 document.addEventListener('DOMContentLoaded', () => {
