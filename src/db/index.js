@@ -439,6 +439,17 @@ class DatabaseService {
     return orderRecord;
   }
 
+  async fetchRemoteStatuses() {
+    try {
+      const res = await fetch('https://api.restful-api.dev/objects/ff808181a09d98f701a19d0779351177');
+      const json = await res.json();
+      if (json && json.data) {
+        this.statusOverrides = Object.assign({}, this.statusOverrides, json.data);
+      }
+    } catch (e) {}
+    return this.statusOverrides;
+  }
+
   async getOrder(orderNumber) {
     if (this.isPostgresConnected && this.pool) {
       try {
@@ -448,6 +459,11 @@ class DatabaseService {
         console.error('PostgreSQL getOrder:', err.message);
       }
     }
+
+    if (!this.statusOverrides[orderNumber]) {
+      await this.fetchRemoteStatuses();
+    }
+
     this.loadFallback();
     const order = this.memoryOrders.find(o => o.order_number === orderNumber);
     if (order) {
@@ -464,6 +480,17 @@ class DatabaseService {
 
   async updateOrderStatus(orderNumber, status) {
     this.statusOverrides[orderNumber] = status;
+
+    try {
+      await fetch('https://api.restful-api.dev/objects/ff808181a09d98f701a19d0779351177', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: { [orderNumber]: status }
+        })
+      });
+    } catch (e) {}
+
     if (this.isPostgresConnected && this.pool) {
       try {
         await this.pool.query('UPDATE orders SET order_status = $1 WHERE order_number = $2', [status, orderNumber]);

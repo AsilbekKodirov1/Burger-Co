@@ -111,6 +111,16 @@ router.get('/orders/:orderNumber', async (req, res) => {
   }
 });
 
+// Bulk status map endpoint for instant frontend syncing
+router.get('/orders/status-map', async (req, res) => {
+  try {
+    const statuses = await db.fetchRemoteStatuses();
+    res.json({ ok: true, data: statuses || {} });
+  } catch (err) {
+    res.json({ ok: true, data: db.statusOverrides || {} });
+  }
+});
+
 // Fast order status check
 router.get('/orders/:orderNumber/status', async (req, res) => {
   try {

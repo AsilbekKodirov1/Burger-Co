@@ -620,31 +620,26 @@ async function loadUserOrders(phone, telegramId) {
     localStorage.setItem('burger_my_orders', JSON.stringify(allCombinedOrders.slice(0, 30)));
     renderAccountOrders(allCombinedOrders);
 
-    // Refresh live status from server for active orders
-    const activeOrders = allCombinedOrders.filter(o => o.order_status !== 'delivered' && o.order_status !== 'cancelled');
-    if (activeOrders.length > 0) {
-      Promise.allSettled(
-        activeOrders.map(ao => fetch(`/api/orders/${ao.order_number}`).then(r => r.json()))
-      ).then(results => {
-        let changed = false;
-        results.forEach((res, idx) => {
-          if (res.status === 'fulfilled' && res.value?.ok) {
-            const fresh = res.value.data || (res.value.status ? { order_number: activeOrders[idx].order_number, order_status: res.value.status } : null);
-            if (fresh) {
-              const target = allCombinedOrders.find(o => o.order_number === fresh.order_number);
-              if (target && fresh.order_status && target.order_status !== fresh.order_status) {
-                target.order_status = fresh.order_status;
-                changed = true;
-              }
+    // Refresh live status from server for active orders using fast bulk status-map
+    fetch('/api/orders/status-map')
+      .then(r => r.json())
+      .then(statusJson => {
+        if (statusJson.ok && statusJson.data) {
+          let changed = false;
+          allCombinedOrders.forEach(o => {
+            const freshStatus = statusJson.data[o.order_number];
+            if (freshStatus && o.order_status !== freshStatus) {
+              o.order_status = freshStatus;
+              changed = true;
             }
+          });
+          if (changed) {
+            localStorage.setItem('burger_my_orders', JSON.stringify(allCombinedOrders.slice(0, 30)));
+            renderAccountOrders(allCombinedOrders);
           }
-        });
-        if (changed) {
-          localStorage.setItem('burger_my_orders', JSON.stringify(allCombinedOrders.slice(0, 30)));
-          renderAccountOrders(allCombinedOrders);
         }
-      });
-    }
+      })
+      .catch(() => {});
   } else {
     accountOrdersList.innerHTML = '<div class="loading-state"><p>Sizda hali buyurtmalar mavjud emas.</p></div>';
   }
@@ -654,7 +649,7 @@ function renderAccountOrders(orders) {
   accountOrdersList.innerHTML = orders.map(o => {
     let statusClass = o.order_status || 'new';
     let statusText = '🟡 Kutilmoqda';
-    if (statusClass === 'accepted') statusText = '👨‍🍳 Tayyorlanmoqda';
+    if (statusClass === 'accepted') statusText = '👨‍🍳 Qabul qilindi';
     if (statusClass === 'delivering') statusText = '🛵 Yetkazilmoqda';
     if (statusClass === 'delivered') statusText = '🏁 Yetkazildi';
     if (statusClass === 'cancelled') statusText = '❌ Bekor qilindi';
