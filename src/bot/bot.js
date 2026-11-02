@@ -478,13 +478,6 @@ Tez orada oshxona buyurtmangizni tasdiqlaydi!
         });
       } catch (e) {}
     }
-            chat_id: order.telegram_user_id,
-            text: customerNotice,
-            parse_mode: 'HTML'
-          })
-        });
-      } catch (e) {}
-    }
   }
 }
 
