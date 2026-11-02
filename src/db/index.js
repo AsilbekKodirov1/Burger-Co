@@ -142,6 +142,7 @@ class DatabaseService {
     this.isPostgresConnected = false;
     this.pool = null;
     this.memoryOrders = [];
+    this.memoryUsers = [];
     this.memoryProducts = [...INITIAL_PRODUCTS];
     this.fallbackFile = path.join(os.tmpdir(), 'burger_orders.json');
     this.ensureFallbackStorage();
@@ -150,10 +151,11 @@ class DatabaseService {
   ensureFallbackStorage() {
     try {
       if (!fs.existsSync(this.fallbackFile)) {
-        fs.writeFileSync(this.fallbackFile, JSON.stringify({ orders: [], products: INITIAL_PRODUCTS }, null, 2));
+        fs.writeFileSync(this.fallbackFile, JSON.stringify({ orders: [], users: [], products: INITIAL_PRODUCTS }, null, 2));
       } else {
         const content = JSON.parse(fs.readFileSync(this.fallbackFile, 'utf8'));
         if (content.orders) this.memoryOrders = content.orders;
+        if (content.users) this.memoryUsers = content.users;
       }
     } catch (e) {
       // Memory fallback is active
@@ -205,6 +207,98 @@ class DatabaseService {
     }
   }
 
+  // --- USER METHODS ---
+  async getUser(telegramId) {
+    const tid = Number(telegramId);
+    if (this.isPostgresConnected && this.pool) {
+      try {
+        const res = await this.pool.query('SELECT * FROM users WHERE telegram_id = $1', [tid]);
+        return res.rows[0] || null;
+      } catch (err) {
+        console.error('PostgreSQL getUser:', err.message);
+      }
+    }
+    return this.memoryUsers.find(u => Number(u.telegram_id) === tid) || null;
+  }
+
+  async upsertUser(userData) {
+    const tid = Number(userData.telegram_id);
+    const existing = await this.getUser(tid);
+
+    if (this.isPostgresConnected && this.pool) {
+      try {
+        if (existing) {
+          const res = await this.pool.query(
+            `UPDATE users 
+             SET first_name = COALESCE($2, first_name),
+                 username = COALESCE($3, username),
+                 phone_number = COALESCE($4, phone_number),
+                 language = COALESCE($5, language),
+                 state = COALESCE($6, state)
+             WHERE telegram_id = $1
+             RETURNING *;`,
+            [tid, userData.first_name, userData.username, userData.phone_number, userData.language, userData.state]
+          );
+          return res.rows[0];
+        } else {
+          const res = await this.pool.query(
+            `INSERT INTO users (telegram_id, first_name, username, phone_number, language, state)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING *;`,
+            [tid, userData.first_name || '', userData.username || '', userData.phone_number || '', userData.language || 'uz', userData.state || 'ask_lang']
+          );
+          return res.rows[0];
+        }
+      } catch (err) {
+        console.error('PostgreSQL upsertUser:', err.message);
+      }
+    }
+
+    // Memory fallback
+    if (existing) {
+      Object.assign(existing, userData);
+      return existing;
+    } else {
+      const newUser = {
+        id: this.memoryUsers.length + 1,
+        telegram_id: tid,
+        first_name: userData.first_name || '',
+        username: userData.username || '',
+        phone_number: userData.phone_number || '',
+        language: userData.language || 'uz',
+        state: userData.state || 'ask_lang',
+        created_at: new Date().toISOString()
+      };
+      this.memoryUsers.push(newUser);
+      try {
+        fs.writeFileSync(this.fallbackFile, JSON.stringify({ orders: this.memoryOrders, users: this.memoryUsers, products: this.memoryProducts }, null, 2));
+      } catch (e) {}
+      return newUser;
+    }
+  }
+
+  async updateUserLanguage(telegramId, lang) {
+    return this.upsertUser({ telegram_id: telegramId, language: lang, state: 'ask_phone' });
+  }
+
+  async updateUserPhone(telegramId, phone) {
+    return this.upsertUser({ telegram_id: telegramId, phone_number: phone, state: 'ready' });
+  }
+
+  async getUserOrders(telegramId) {
+    const tid = Number(telegramId);
+    if (this.isPostgresConnected && this.pool) {
+      try {
+        const res = await this.pool.query('SELECT * FROM orders WHERE telegram_user_id = $1 ORDER BY created_at DESC LIMIT 10', [tid]);
+        return res.rows;
+      } catch (err) {
+        console.error('PostgreSQL getUserOrders:', err.message);
+      }
+    }
+    return this.memoryOrders.filter(o => Number(o.telegram_user_id) === tid).reverse().slice(0, 10);
+  }
+
+  // --- PRODUCT METHODS ---
   async getProducts() {
     if (this.isPostgresConnected && this.pool) {
       try {
@@ -217,6 +311,7 @@ class DatabaseService {
     return this.memoryProducts;
   }
 
+  // --- ORDER METHODS ---
   async createOrder(orderData) {
     const orderNumber = 'BG-' + Math.floor(100000 + Math.random() * 900000);
     const createdAt = new Date().toISOString();
@@ -227,7 +322,7 @@ class DatabaseService {
       customer_name: orderData.customer_name || 'Mijoz',
       customer_phone: orderData.customer_phone || '',
       customer_address: orderData.customer_address || '',
-      telegram_user_id: orderData.telegram_user_id || null,
+      telegram_user_id: orderData.telegram_user_id ? Number(orderData.telegram_user_id) : null,
       telegram_username: orderData.telegram_username || null,
       items: orderData.items || [],
       total_amount: orderData.total_amount || 0,
@@ -275,7 +370,7 @@ class DatabaseService {
     // Save to memory & tmp file
     this.memoryOrders.push(orderRecord);
     try {
-      fs.writeFileSync(this.fallbackFile, JSON.stringify({ orders: this.memoryOrders, products: this.memoryProducts }, null, 2));
+      fs.writeFileSync(this.fallbackFile, JSON.stringify({ orders: this.memoryOrders, users: this.memoryUsers, products: this.memoryProducts }, null, 2));
     } catch (e) {}
 
     return orderRecord;
@@ -306,7 +401,7 @@ class DatabaseService {
     if (order) {
       order.order_status = status;
       try {
-        fs.writeFileSync(this.fallbackFile, JSON.stringify({ orders: this.memoryOrders, products: this.memoryProducts }, null, 2));
+        fs.writeFileSync(this.fallbackFile, JSON.stringify({ orders: this.memoryOrders, users: this.memoryUsers, products: this.memoryProducts }, null, 2));
       } catch (e) {}
       return true;
     }

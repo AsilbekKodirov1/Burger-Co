@@ -64,14 +64,32 @@ const successDoneBtn = document.getElementById('successDoneBtn');
 const btnGeolocate = document.getElementById('btnGeolocate');
 const customerAddressInput = document.getElementById('customerAddress');
 
-// 1. Pre-fill user data from Telegram WebApp
-function prefillUserData() {
+// 1. Pre-fill user data from Telegram WebApp & database account
+async function prefillUserData() {
   if (!tg?.initDataUnsafe?.user) return;
   const user = tg.initDataUnsafe.user;
   const nameInput = document.getElementById('customerName');
+  const phoneInput = document.getElementById('customerPhone');
+
   if (nameInput && !nameInput.value) {
     const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
     nameInput.value = fullName;
+  }
+
+  // Fetch saved user data from server if exists
+  try {
+    const res = await fetch(`/api/user/${user.id}`);
+    const data = await res.json();
+    if (data.ok && data.data) {
+      if (data.data.phone_number && phoneInput && !phoneInput.value) {
+        phoneInput.value = data.data.phone_number;
+      }
+      if (data.data.first_name && nameInput && !nameInput.value) {
+        nameInput.value = data.data.first_name;
+      }
+    }
+  } catch (e) {
+    // Ignore fetch error
   }
 }
 

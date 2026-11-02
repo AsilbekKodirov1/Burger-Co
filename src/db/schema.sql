@@ -1,5 +1,16 @@
 -- PostgreSQL Schema for Burger & Co. Mini App
 
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    telegram_id BIGINT UNIQUE NOT NULL,
+    first_name VARCHAR(255),
+    username VARCHAR(255),
+    phone_number VARCHAR(64),
+    language VARCHAR(8) DEFAULT 'uz',
+    state VARCHAR(32) DEFAULT 'ready',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS orders (
     id SERIAL PRIMARY KEY,
     order_number VARCHAR(32) UNIQUE NOT NULL,
@@ -29,6 +40,7 @@ CREATE TABLE IF NOT EXISTS products (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
+CREATE INDEX IF NOT EXISTS idx_orders_telegram_user ON orders(telegram_user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(order_status);
-

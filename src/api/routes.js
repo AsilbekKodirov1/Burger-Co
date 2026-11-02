@@ -88,6 +88,29 @@ router.get('/orders/:orderNumber', async (req, res) => {
   }
 });
 
+// Get user profile by telegram ID
+router.get('/user/:telegramId', async (req, res) => {
+  try {
+    const user = await db.getUser(req.params.telegramId);
+    if (!user) {
+      return res.status(404).json({ ok: false, error: 'Foydalanuvchi topilmadi' });
+    }
+    res.json({ ok: true, data: user });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Get user order history
+router.get('/user/:telegramId/orders', async (req, res) => {
+  try {
+    const orders = await db.getUserOrders(req.params.telegramId);
+    res.json({ ok: true, data: orders });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // Health check
 router.get('/health', (req, res) => {
   res.json({

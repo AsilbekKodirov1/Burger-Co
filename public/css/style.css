@@ -341,8 +341,7 @@ select {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
-  /* taste-skill-ignore */
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6); /* taste-skill-ignore */
   z-index: 100;
   animation: slideUp 0.25s var(--transition-normal);
 }
