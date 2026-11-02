@@ -42,14 +42,15 @@ if (!process.env.VERCEL) {
   });
 }
 
-// Auto-initialize for Vercel Serverless
+// Default credentials fallback (in case Vercel Environment Variables are not set)
+const BOT_TOKEN = process.env.BOT_TOKEN || '9160668986:AAGxRh4wRNxsBleieoqCXW1JctqgioX5KQw';
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '5793896253';
+const WEBAPP_URL = process.env.WEBAPP_URL || 'https://burger-co-pi.vercel.app';
+
+// Auto-initialize
 try {
   db.init(process.env.DATABASE_URL);
-  bot.init(
-    process.env.BOT_TOKEN,
-    process.env.ADMIN_CHAT_ID,
-    process.env.WEBAPP_URL
-  );
+  bot.init(BOT_TOKEN, ADMIN_CHAT_ID, WEBAPP_URL);
 } catch (e) {
   console.warn('Init warning:', e.message);
 }

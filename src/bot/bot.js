@@ -14,6 +14,7 @@ class BotService {
       return;
     }
 
+    this.token = token;
     this.adminChatId = adminChatId;
     this.webAppUrl = webAppUrl || 'http://localhost:3000';
     try {
@@ -22,7 +23,6 @@ class BotService {
       this.isInitialized = true;
     } catch (err) {
       console.warn('Telegram bot init error:', err.message);
-      return;
     }
 
     // Only launch long polling if NOT running on Vercel Serverless
@@ -179,13 +179,32 @@ ${itemsText}
     ]);
 
     try {
-      await this.bot.telegram.sendMessage(this.adminChatId, msg, {
-        parse_mode: 'HTML',
-        ...keyboard
-      });
+      if (this.bot && this.bot.telegram) {
+        await this.bot.telegram.sendMessage(this.adminChatId, msg, {
+          parse_mode: 'HTML',
+          ...keyboard
+        });
+      } else {
+        throw new Error('Telegraf instance mavjud emas');
+      }
       console.log(`✅ [Telegram Bot] Admin (${this.adminChatId}) ga yangi buyurtma yuborildi!`);
     } catch (err) {
-      console.error('❌ [Telegram Bot] Adminga xabar yuborishda xatolik:', err.message);
+      console.warn('⚠️ Telegraf orqali yuborilmadi, to\'g\'ridan-to\'g\'ri HTTP fetch orqali urinilmoqda:', err.message);
+      // Bulletproof direct fetch fallback
+      try {
+        await fetch(`https://api.telegram.org/bot${this.token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: this.adminChatId,
+            text: msg,
+            parse_mode: 'HTML'
+          })
+        });
+        console.log(`✅ [Telegram Bot] HTTP fetch orqali admin (${this.adminChatId}) ga muvaffaqiyatli yuborildi!`);
+      } catch (fetchErr) {
+        console.error('❌ [Telegram Bot] To\'g\'ridan-to\'g\'ri HTTP fetch ham xato berdi:', fetchErr.message);
+      }
     }
 
     // Also notify customer if telegram_user_id is available
