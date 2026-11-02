@@ -255,9 +255,10 @@ class BotService {
     });
 
     // Admin action buttons (qabul qilish, yetkazilmoqda, yetkazildi, bekor qilish)
-    this.bot.action(/^status:(.+):(.+)$/, async (ctx) => {
+    this.bot.action(/^status:([^:]+):([^:]+):([^:]+)$/, async (ctx) => {
       const orderNumber = ctx.match[1];
-      const newStatus = ctx.match[2];
+      const customerId = ctx.match[2];
+      const newStatus = ctx.match[3];
 
       await db.updateOrderStatus(orderNumber, newStatus);
 
@@ -287,7 +288,7 @@ class BotService {
         await ctx.answerCbQuery(`Holat: ${statusLabel}`);
       } catch (e) {}
 
-      // Update admin message text
+      // Update admin message text while preserving customerId
       try {
         const currentText = ctx.callbackQuery.message.text || '';
         const updatedText = currentText.replace(/Holati: .*/g, `Holati: <b>${statusLabel}</b>`);
@@ -296,24 +297,24 @@ class BotService {
           parse_mode: 'HTML',
           ...Markup.inlineKeyboard([
             [
-              Markup.button.callback('🛵 Kuryerda', `status:${orderNumber}:delivering`),
-              Markup.button.callback('🏁 Yetkazildi', `status:${orderNumber}:delivered`),
-              Markup.button.callback('❌ Bekor qilish', `status:${orderNumber}:cancelled`)
+              Markup.button.callback('🛵 Kuryerda', `status:${orderNumber}:${customerId}:delivering`),
+              Markup.button.callback('🏁 Yetkazildi', `status:${orderNumber}:${customerId}:delivered`),
+              Markup.button.callback('❌ Bekor qilish', `status:${orderNumber}:${customerId}:cancelled`)
             ]
           ])
         });
       } catch (e) {}
 
-      // Send status notification to customer in their language!
-      const order = await db.getOrder(orderNumber);
-      if (order && order.telegram_user_id) {
-        const customer = await db.getUser(order.telegram_user_id);
+      // Send status notification to customer directly via customerId!
+      const targetUserId = (customerId && customerId !== '0') ? Number(customerId) : null;
+      if (targetUserId) {
+        const customer = await db.getUser(targetUserId);
         const lang = customer?.language || 'uz';
         const customerMsg = this.t(lang, notifyKey).replace('{orderNumber}', orderNumber);
 
         try {
           if (this.bot && this.bot.telegram) {
-            await this.bot.telegram.sendMessage(order.telegram_user_id, customerMsg, { parse_mode: 'HTML' });
+            await this.bot.telegram.sendMessage(targetUserId, customerMsg, { parse_mode: 'HTML' });
           } else {
             throw new Error('Telegraf instance not ready');
           }
@@ -324,11 +325,12 @@ class BotService {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                chat_id: order.telegram_user_id,
+                chat_id: targetUserId,
                 text: customerMsg,
                 parse_mode: 'HTML'
               })
             });
+            console.log(`✅ [Telegram Bot] Status xabari mijoz (${targetUserId}) ga yetkazildi!`);
           } catch (fetchErr) {
             console.warn('Mijozga xabar yetib bormadi:', fetchErr.message);
           }
@@ -376,13 +378,14 @@ ${itemsText}
 💰 <b>Jami summa:</b> <b>${this.formatPrice(order.total_amount)}</b>
 ⏰ <b>Vaqt:</b> ${new Date(order.created_at || Date.now()).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}`;
 
+    const customerId = order.telegram_user_id || '0';
     const keyboard = Markup.inlineKeyboard([
       [
-        Markup.button.callback('✅ Qabul qilish', `status:${order.order_number}:accepted`),
-        Markup.button.callback('🛵 Kuryerda', `status:${order.order_number}:delivering`),
+        Markup.button.callback('✅ Qabul qilish', `status:${order.order_number}:${customerId}:accepted`),
+        Markup.button.callback('🛵 Kuryerda', `status:${order.order_number}:${customerId}:delivering`),
       ],
       [
-        Markup.button.callback('❌ Bekor qilish', `status:${order.order_number}:cancelled`)
+        Markup.button.callback('❌ Bekor qilish', `status:${order.order_number}:${customerId}:cancelled`)
       ]
     ]);
 

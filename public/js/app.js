@@ -360,6 +360,13 @@ orderForm.addEventListener('submit', async (e) => {
 
       localStorage.setItem('burger_user_phone', payload.customer_phone);
       localStorage.setItem('burger_user_name', payload.customer_name);
+
+      // Save order to user's local order history
+      try {
+        const myOrders = JSON.parse(localStorage.getItem('burger_my_orders') || '[]');
+        myOrders.unshift(result.data);
+        localStorage.setItem('burger_my_orders', JSON.stringify(myOrders.slice(0, 30)));
+      } catch (e) {}
       
       // Close checkout drawer
       closeCheckoutModal();
@@ -543,9 +550,19 @@ async function loadAccountDetails() {
 }
 
 async function loadUserOrders(phone, telegramId) {
-  accountOrdersList.innerHTML = '<div class="loading-state"><p>Buyurtmalar yuklanmoqda...</p></div>';
+  let localOrders = [];
+  try {
+    localOrders = JSON.parse(localStorage.getItem('burger_my_orders') || '[]');
+  } catch (e) {}
 
-  let orders = [];
+  // If local orders exist, show them instantly!
+  if (localOrders.length > 0) {
+    renderAccountOrders(localOrders);
+  } else {
+    accountOrdersList.innerHTML = '<div class="loading-state"><p>Buyurtmalar yuklanmoqda...</p></div>';
+  }
+
+  let serverOrders = [];
 
   // 1. Try by phone
   if (phone) {
@@ -554,24 +571,36 @@ async function loadUserOrders(phone, telegramId) {
       const res = await fetch(`/api/orders/by-phone/${clean}`);
       const data = await res.json();
       if (data.ok && Array.isArray(data.data) && data.data.length > 0) {
-        orders = data.data;
+        serverOrders = data.data;
       }
     } catch (e) {}
   }
 
-  // 2. Try by telegram ID if no orders found by phone
-  if (orders.length === 0 && telegramId) {
+  // 2. Try by telegram ID
+  if (serverOrders.length === 0 && telegramId) {
     try {
       const res = await fetch(`/api/user/${telegramId}/orders`);
       const data = await res.json();
       if (data.ok && Array.isArray(data.data) && data.data.length > 0) {
-        orders = data.data;
+        serverOrders = data.data;
       }
     } catch (e) {}
   }
 
-  if (orders.length > 0) {
-    renderAccountOrders(orders);
+  // Combine and deduplicate orders by order_number
+  const orderMap = new Map();
+  serverOrders.forEach(o => orderMap.set(o.order_number, o));
+  localOrders.forEach(o => {
+    if (!orderMap.has(o.order_number)) {
+      orderMap.set(o.order_number, o);
+    }
+  });
+
+  const allCombinedOrders = Array.from(orderMap.values());
+
+  if (allCombinedOrders.length > 0) {
+    localStorage.setItem('burger_my_orders', JSON.stringify(allCombinedOrders.slice(0, 30)));
+    renderAccountOrders(allCombinedOrders);
   } else {
     accountOrdersList.innerHTML = '<div class="loading-state"><p>Sizda hali buyurtmalar mavjud emas.</p></div>';
   }
