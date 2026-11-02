@@ -200,14 +200,36 @@
         </div>
         <div class="sheet-body">
           <!-- Profile Card -->
-          <div class="profile-card">
+          <div class="profile-card" id="profileCardDisplay">
             <div class="profile-avatar" id="profileAvatar">U</div>
             <div class="profile-info">
               <strong id="profileName" class="profile-name">Mijoz</strong>
               <span id="profileUsername" class="profile-sub">@username</span>
               <span id="profilePhone" class="profile-phone">Telefon kiritilmagan</span>
             </div>
+            <button type="button" id="btnEditProfile" class="btn-edit-profile" title="Tahrirlash">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
           </div>
+
+          <!-- In-App Phone Account Form -->
+          <form id="accountPhoneForm" class="account-phone-form hidden">
+            <div class="account-form-header">
+              <span>Akkaunt ma'lumotlari</span>
+            </div>
+            <div class="form-group">
+              <label for="accInputName">Ismingiz</label>
+              <input type="text" id="accInputName" placeholder="Ismingizni kiriting" required>
+            </div>
+            <div class="form-group">
+              <label for="accInputPhone">Telefon raqamingiz *</label>
+              <input type="tel" id="accInputPhone" placeholder="+998 (90) 123-45-67" required>
+            </div>
+            <div class="account-form-actions">
+              <button type="submit" id="btnSaveAccount" class="btn-save-account">Saqlash va Kirish</button>
+              <button type="button" id="btnCancelEdit" class="btn-cancel-edit hidden">Bekor qilish</button>
+            </div>
+          </form>
 
           <!-- Order History Tab -->
           <div class="account-section-title">Buyurtmalar tarixi</div>

@@ -862,7 +862,80 @@ select {
   display: flex;
   align-items: center;
   gap: 14px;
+  margin-bottom: 20px;
+  position: relative;
+}
+
+.btn-edit-profile {
+  margin-left: auto;
+  background: var(--surface-elevated);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.btn-edit-profile:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.account-phone-form {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 16px;
   margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.account-phone-form.hidden {
+  display: none !important;
+}
+
+.account-form-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 2px;
+}
+
+.account-form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-save-account {
+  flex: 1;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: none;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-cancel-edit {
+  background: var(--surface-elevated);
+  color: var(--muted);
+  border: none;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .profile-avatar {

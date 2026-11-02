@@ -64,16 +64,24 @@ const successDoneBtn = document.getElementById('successDoneBtn');
 const btnGeolocate = document.getElementById('btnGeolocate');
 const customerAddressInput = document.getElementById('customerAddress');
 
-// 1. Pre-fill user data from Telegram WebApp & database account
+// 1. Pre-fill user data from Telegram WebApp, localStorage & database
 async function prefillUserData() {
-  if (!tg?.initDataUnsafe?.user) return;
-  const user = tg.initDataUnsafe.user;
   const nameInput = document.getElementById('customerName');
   const phoneInput = document.getElementById('customerPhone');
+
+  const localName = localStorage.getItem('burger_user_name');
+  const localPhone = localStorage.getItem('burger_user_phone');
+
+  if (localName && nameInput && !nameInput.value) nameInput.value = localName;
+  if (localPhone && phoneInput && !phoneInput.value) phoneInput.value = localPhone;
+
+  if (!tg?.initDataUnsafe?.user) return;
+  const user = tg.initDataUnsafe.user;
 
   if (nameInput && !nameInput.value) {
     const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
     nameInput.value = fullName;
+    localStorage.setItem('burger_user_name', fullName);
   }
 
   // Fetch saved user data from server if exists
@@ -81,11 +89,13 @@ async function prefillUserData() {
     const res = await fetch(`/api/user/${user.id}`);
     const data = await res.json();
     if (data.ok && data.data) {
-      if (data.data.phone_number && phoneInput && !phoneInput.value) {
+      if (data.data.phone_number && phoneInput) {
         phoneInput.value = data.data.phone_number;
+        localStorage.setItem('burger_user_phone', data.data.phone_number);
       }
-      if (data.data.first_name && nameInput && !nameInput.value) {
+      if (data.data.first_name && nameInput) {
         nameInput.value = data.data.first_name;
+        localStorage.setItem('burger_user_name', data.data.first_name);
       }
     }
   } catch (e) {
@@ -347,6 +357,9 @@ orderForm.addEventListener('submit', async (e) => {
 
     if (result.ok && result.data) {
       triggerHaptic('success');
+
+      localStorage.setItem('burger_user_phone', payload.customer_phone);
+      localStorage.setItem('burger_user_name', payload.customer_name);
       
       // Close checkout drawer
       closeCheckoutModal();
@@ -391,6 +404,11 @@ const profileAvatar = document.getElementById('profileAvatar');
 const profileName = document.getElementById('profileName');
 const profileUsername = document.getElementById('profileUsername');
 const profilePhone = document.getElementById('profilePhone');
+const btnEditProfile = document.getElementById('btnEditProfile');
+const accountPhoneForm = document.getElementById('accountPhoneForm');
+const accInputName = document.getElementById('accInputName');
+const accInputPhone = document.getElementById('accInputPhone');
+const btnCancelEdit = document.getElementById('btnCancelEdit');
 const accountOrdersList = document.getElementById('accountOrdersList');
 
 function openAccountModal() {
@@ -409,49 +427,160 @@ if (openAccountBtn) openAccountBtn.addEventListener('click', openAccountModal);
 if (closeAccountBtn) closeAccountBtn.addEventListener('click', closeAccountModal);
 if (accountBackdrop) accountBackdrop.addEventListener('click', closeAccountModal);
 
+if (btnEditProfile) {
+  btnEditProfile.addEventListener('click', () => {
+    triggerHaptic('light');
+    accountPhoneForm.classList.remove('hidden');
+    btnCancelEdit.classList.remove('hidden');
+    accInputPhone.focus();
+  });
+}
+
+if (btnCancelEdit) {
+  btnCancelEdit.addEventListener('click', () => {
+    triggerHaptic('light');
+    accountPhoneForm.classList.add('hidden');
+  });
+}
+
+// In-app Phone Account Form Submit
+if (accountPhoneForm) {
+  accountPhoneForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    triggerHaptic('medium');
+
+    const phone = accInputPhone.value.trim();
+    const name = accInputName.value.trim() || 'Mijoz';
+    const user = tg?.initDataUnsafe?.user;
+
+    try {
+      const res = await fetch('/api/user/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegram_id: user?.id || localStorage.getItem('burger_user_tid') || null,
+          phone_number: phone,
+          first_name: name,
+          username: user?.username || null
+        })
+      });
+
+      const result = await res.json();
+      if (result.ok && result.data) {
+        triggerHaptic('success');
+        localStorage.setItem('burger_user_phone', phone);
+        localStorage.setItem('burger_user_name', name);
+        if (result.data.telegram_id) {
+          localStorage.setItem('burger_user_tid', result.data.telegram_id);
+        }
+
+        // Pre-fill checkout fields
+        const nameInput = document.getElementById('customerName');
+        const phoneInput = document.getElementById('customerPhone');
+        if (nameInput) nameInput.value = name;
+        if (phoneInput) phoneInput.value = phone;
+
+        // Hide form and update card
+        accountPhoneForm.classList.add('hidden');
+        profileName.textContent = name;
+        profilePhone.textContent = `📞 ${phone}`;
+
+        // Load orders immediately
+        loadUserOrders(phone, user?.id);
+      } else {
+        alert(result.error || 'Saqlashda xatolik yuz berdi');
+      }
+    } catch (err) {
+      console.error('Account save error:', err);
+      alert('Tarmoq xatosi.');
+    }
+  });
+}
+
 async function loadAccountDetails() {
   const user = tg?.initDataUnsafe?.user;
-  const userName = user ? [user.first_name, user.last_name].filter(Boolean).join(' ') : 'Hurmatli mijoz';
+  const localName = localStorage.getItem('burger_user_name');
+  const localPhone = localStorage.getItem('burger_user_phone');
+
+  const userName = user 
+    ? [user.first_name, user.last_name].filter(Boolean).join(' ') 
+    : (localName || 'Hurmatli mijoz');
   const userHandle = user?.username ? `@${user.username}` : '';
-  const initial = (user?.first_name || 'M')[0].toUpperCase();
+  const initial = (userName || 'M')[0].toUpperCase();
 
   profileAvatar.textContent = initial;
   profileName.textContent = userName;
-  profileUsername.textContent = userHandle || 'Telegram foydalanuvchisi';
+  profileUsername.textContent = userHandle || 'Aktiv mijoz';
 
-  const telegramId = user?.id;
+  if (accInputName) accInputName.value = userName;
+
+  let currentPhone = localPhone || '';
+  const telegramId = user?.id || localStorage.getItem('burger_user_tid');
 
   if (telegramId) {
     try {
       const userRes = await fetch(`/api/user/${telegramId}`);
       const userData = await userRes.json();
       if (userData.ok && userData.data?.phone_number) {
-        profilePhone.textContent = `📞 ${userData.data.phone_number}`;
-      } else {
-        profilePhone.textContent = 'Telefon raqam saqlanmagan';
+        currentPhone = userData.data.phone_number;
+        localStorage.setItem('burger_user_phone', currentPhone);
       }
+    } catch (e) {}
+  }
 
-      // Load user orders
-      const ordersRes = await fetch(`/api/user/${telegramId}/orders`);
-      const ordersData = await ordersRes.json();
-      if (ordersData.ok && ordersData.data && ordersData.data.length > 0) {
-        renderAccountOrders(ordersData.data);
-      } else {
-        accountOrdersList.innerHTML = '<div class="loading-state"><p>Sizda hali buyurtmalar mavjud emas.</p></div>';
-      }
-    } catch (e) {
-      accountOrdersList.innerHTML = '<div class="loading-state"><p>Buyurtmalar tarixini yuklab bo\'lmadi.</p></div>';
-    }
+  if (currentPhone) {
+    profilePhone.textContent = `📞 ${currentPhone}`;
+    if (accInputPhone) accInputPhone.value = currentPhone;
+    accountPhoneForm.classList.add('hidden');
   } else {
-    profilePhone.textContent = 'Telegramdan tashqarida ochilgan';
-    accountOrdersList.innerHTML = '<div class="loading-state"><p>Buyurtmalar tarixini ko\'rish uchun ilovani Telegram bot orqali oching.</p></div>';
+    profilePhone.textContent = 'Telefon kiritilmagan';
+    // If phone is missing, open input form immediately
+    accountPhoneForm.classList.remove('hidden');
+    btnCancelEdit.classList.add('hidden');
+  }
+
+  loadUserOrders(currentPhone, telegramId);
+}
+
+async function loadUserOrders(phone, telegramId) {
+  accountOrdersList.innerHTML = '<div class="loading-state"><p>Buyurtmalar yuklanmoqda...</p></div>';
+
+  let orders = [];
+
+  // 1. Try by phone
+  if (phone) {
+    try {
+      const clean = phone.replace(/[^0-9]/g, '');
+      const res = await fetch(`/api/orders/by-phone/${clean}`);
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.data) && data.data.length > 0) {
+        orders = data.data;
+      }
+    } catch (e) {}
+  }
+
+  // 2. Try by telegram ID if no orders found by phone
+  if (orders.length === 0 && telegramId) {
+    try {
+      const res = await fetch(`/api/user/${telegramId}/orders`);
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.data) && data.data.length > 0) {
+        orders = data.data;
+      }
+    } catch (e) {}
+  }
+
+  if (orders.length > 0) {
+    renderAccountOrders(orders);
+  } else {
+    accountOrdersList.innerHTML = '<div class="loading-state"><p>Sizda hali buyurtmalar mavjud emas.</p></div>';
   }
 }
 
 function renderAccountOrders(orders) {
   accountOrdersList.innerHTML = orders.map(o => {
     let statusClass = o.order_status || 'new';
-    let statusText = 'Kutilmoqda';
+    let statusText = '🟡 Kutilmoqda';
     if (statusClass === 'accepted') statusText = '👨‍🍳 Tayyorlanmoqda';
     if (statusClass === 'delivering') statusText = '🛵 Yetkazilmoqda';
     if (statusClass === 'delivered') statusText = '🏁 Yetkazildi';

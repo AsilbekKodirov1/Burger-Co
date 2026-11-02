@@ -310,13 +310,34 @@ class DatabaseService {
     const tid = Number(telegramId);
     if (this.isPostgresConnected && this.pool) {
       try {
-        const res = await this.pool.query('SELECT * FROM orders WHERE telegram_user_id = $1 ORDER BY created_at DESC LIMIT 10', [tid]);
+        const res = await this.pool.query('SELECT * FROM orders WHERE telegram_user_id = $1 ORDER BY created_at DESC LIMIT 15', [tid]);
         return res.rows;
       } catch (err) {
         console.error('PostgreSQL getUserOrders:', err.message);
       }
     }
-    return this.memoryOrders.filter(o => Number(o.telegram_user_id) === tid).reverse().slice(0, 10);
+    return this.memoryOrders.filter(o => Number(o.telegram_user_id) === tid).reverse().slice(0, 15);
+  }
+
+  async getOrdersByPhone(phone) {
+    if (!phone) return [];
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (!cleanPhone) return [];
+    if (this.isPostgresConnected && this.pool) {
+      try {
+        const res = await this.pool.query(
+          "SELECT * FROM orders WHERE REPLACE(REPLACE(customer_phone, '+', ''), ' ', '') LIKE $1 ORDER BY created_at DESC LIMIT 15",
+          ['%' + cleanPhone.slice(-9)]
+        );
+        return res.rows;
+      } catch (err) {
+        console.error('PostgreSQL getOrdersByPhone:', err.message);
+      }
+    }
+    return this.memoryOrders.filter(o => {
+      const oClean = (o.customer_phone || '').replace(/[^0-9]/g, '');
+      return oClean && cleanPhone && oClean.slice(-9) === cleanPhone.slice(-9);
+    }).reverse().slice(0, 15);
   }
 
   // --- PRODUCT METHODS ---

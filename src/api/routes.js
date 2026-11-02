@@ -122,6 +122,39 @@ router.get('/user/:telegramId/orders', async (req, res) => {
   }
 });
 
+// Save / Register user profile directly from Mini App
+router.post('/user/save', async (req, res) => {
+  try {
+    const { telegram_id, phone_number, first_name, username } = req.body;
+    if (!phone_number) {
+      return res.status(400).json({ ok: false, error: 'Telefon raqam kiritilishi shart!' });
+    }
+
+    const tid = telegram_id || Date.now(); // If opened outside Telegram, generate consistent ID
+    const user = await db.upsertUser({
+      telegram_id: tid,
+      phone_number: phone_number.trim(),
+      first_name: first_name ? first_name.trim() : 'Mijoz',
+      username: username ? username.trim() : null,
+      state: 'ready'
+    });
+
+    res.json({ ok: true, data: user });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Get orders by phone number
+router.get('/orders/by-phone/:phone', async (req, res) => {
+  try {
+    const orders = await db.getOrdersByPhone(req.params.phone);
+    res.json({ ok: true, data: orders });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // Health check
 router.get('/health', (req, res) => {
   res.json({
