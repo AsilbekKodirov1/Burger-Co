@@ -98,6 +98,16 @@ router.post('/orders', async (req, res) => {
   }
 });
 
+// Bulk status map endpoint for instant frontend syncing (must be before :orderNumber)
+router.get('/orders/status-map', async (req, res) => {
+  try {
+    const statuses = await db.fetchRemoteStatuses();
+    res.json({ ok: true, data: statuses || {} });
+  } catch (err) {
+    res.json({ ok: true, data: db.statusOverrides || {} });
+  }
+});
+
 // Get order by order number
 router.get('/orders/:orderNumber', async (req, res) => {
   try {
@@ -108,16 +118,6 @@ router.get('/orders/:orderNumber', async (req, res) => {
     res.json({ ok: true, data: order });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
-  }
-});
-
-// Bulk status map endpoint for instant frontend syncing
-router.get('/orders/status-map', async (req, res) => {
-  try {
-    const statuses = await db.fetchRemoteStatuses();
-    res.json({ ok: true, data: statuses || {} });
-  } catch (err) {
-    res.json({ ok: true, data: db.statusOverrides || {} });
   }
 });
 
