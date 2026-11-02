@@ -21,10 +21,10 @@ const TEXTS = {
     status_delivered: "🏁 Yetkazib berildi",
     status_cancelled: "❌ Bekor qilindi",
     // Customer status notifications
-    notify_accepted: "👨‍🍳 Sizning <b>#{orderNumber}</b> raqamli buyurtmangiz qabul qilindi va oshxonada tayyorlanmoqda!",
-    notify_delivering: "🛵 Sizning <b>#{orderNumber}</b> raqamli buyurtmangiz kuryer orqali yo'lga chiqdi!",
-    notify_delivered: "🎉 Sizning <b>#{orderNumber}</b> raqamli buyurtmangiz yetkazildi. Yoqimli ishtaha!",
-    notify_cancelled: "⚠️ Sizning <b>#{orderNumber}</b> raqamli buyurtmangiz bekor qilindi."
+    notify_accepted: "👨‍🍳 Sizning <b>#{orderNumber}</b> raqamli buyurtmangiz <b>QABUL QILINDI</b> va hozir oshxonada tayyorlanmoqda!",
+    notify_delivering: "🛵 Sizning <b>#{orderNumber}</b> raqamli buyurtmangiz <b>KURYERGA BERILDI</b> va yo'lda yetkazilmoqda!",
+    notify_delivered: "🏁 Sizning <b>#{orderNumber}</b> raqamli buyurtmangiz <b>YETKAZIB BERILDI</b>. Yoqimli ishtaha! 🎉",
+    notify_cancelled: "❌ Sizning <b>#{orderNumber}</b> raqamli buyurtmangiz <b>BEKOR QILINDI</b>."
   },
   ru: {
     choose_lang: "Здравствуйте! 🍔 Добро пожаловать в <b>Burger & Co.</b>!\nПожалуйста, выберите язык:",
@@ -255,32 +255,59 @@ class BotService {
     });
 
     // Admin action buttons (qabul qilish, yetkazilmoqda, yetkazildi, bekor qilish)
-    this.bot.action(/^status:([^:]+):([^:]+):([^:]+)$/, async (ctx) => {
-      const orderNumber = ctx.match[1];
-      const customerId = ctx.match[2];
-      const newStatus = ctx.match[3];
+    this.bot.action(/^status:(.+)$/, async (ctx) => {
+      const parts = ctx.match[1].split(':');
+      let orderNumber, customerId, newStatus;
+
+      if (parts.length >= 3) {
+        orderNumber = parts[0];
+        customerId = parts[1];
+        newStatus = parts[2];
+      } else {
+        orderNumber = parts[0];
+        customerId = null;
+        newStatus = parts[1];
+      }
 
       await db.updateOrderStatus(orderNumber, newStatus);
 
       let statusLabel = '';
       let notifyKey = '';
+      let nextButtons = [];
 
       switch (newStatus) {
         case 'accepted':
-          statusLabel = '✅ QABUL QILINDI (Tayyorlanmoqda)';
+          statusLabel = '👨‍🍳 QABUL QILINDI (Tayyorlanmoqda)';
           notifyKey = 'notify_accepted';
+          nextButtons = [
+            [
+              Markup.button.callback('🛵 Kuryerda', `status:${orderNumber}:${customerId || '0'}:delivering`),
+              Markup.button.callback('🏁 Yetkazildi', `status:${orderNumber}:${customerId || '0'}:delivered`)
+            ],
+            [
+              Markup.button.callback('❌ Bekor qilish', `status:${orderNumber}:${customerId || '0'}:cancelled`)
+            ]
+          ];
           break;
         case 'delivering':
           statusLabel = '🛵 KURYERDA (Yetkazilmoqda)';
           notifyKey = 'notify_delivering';
+          nextButtons = [
+            [
+              Markup.button.callback('🏁 Yetkazildi', `status:${orderNumber}:${customerId || '0'}:delivered`),
+              Markup.button.callback('❌ Bekor qilish', `status:${orderNumber}:${customerId || '0'}:cancelled`)
+            ]
+          ];
           break;
         case 'delivered':
           statusLabel = '🏁 YETKAZIB BERILDI';
           notifyKey = 'notify_delivered';
+          nextButtons = [];
           break;
         case 'cancelled':
           statusLabel = '❌ BEKOR QILINDI';
           notifyKey = 'notify_cancelled';
+          nextButtons = [];
           break;
       }
 
@@ -288,25 +315,29 @@ class BotService {
         await ctx.answerCbQuery(`Holat: ${statusLabel}`);
       } catch (e) {}
 
-      // Update admin message text while preserving customerId
+      // Update admin message text
       try {
         const currentText = ctx.callbackQuery.message.text || '';
         const updatedText = currentText.replace(/Holati: .*/g, `Holati: <b>${statusLabel}</b>`);
 
         await ctx.editMessageText(updatedText, {
           parse_mode: 'HTML',
-          ...Markup.inlineKeyboard([
-            [
-              Markup.button.callback('🛵 Kuryerda', `status:${orderNumber}:${customerId}:delivering`),
-              Markup.button.callback('🏁 Yetkazildi', `status:${orderNumber}:${customerId}:delivered`),
-              Markup.button.callback('❌ Bekor qilish', `status:${orderNumber}:${customerId}:cancelled`)
-            ]
-          ])
+          ...(nextButtons.length > 0 ? Markup.inlineKeyboard(nextButtons) : {})
         });
       } catch (e) {}
 
-      // Send status notification to customer directly via customerId!
-      const targetUserId = (customerId && customerId !== '0') ? Number(customerId) : null;
+      // Send status notification to customer!
+      let targetUserId = (customerId && customerId !== '0') ? Number(customerId) : null;
+      if (!targetUserId) {
+        const order = await db.getOrder(orderNumber);
+        if (order && order.telegram_user_id) {
+          targetUserId = Number(order.telegram_user_id);
+        } else {
+          // Fallback to admin so user testing still receives the notification
+          targetUserId = Number(this.adminChatId);
+        }
+      }
+
       if (targetUserId) {
         const customer = await db.getUser(targetUserId);
         const lang = customer?.language || 'uz';
@@ -330,7 +361,7 @@ class BotService {
                 parse_mode: 'HTML'
               })
             });
-            console.log(`✅ [Telegram Bot] Status xabari mijoz (${targetUserId}) ga yetkazildi!`);
+            console.log(`✅ [Telegram Bot] Status xabari (${targetUserId}) ga yetkazildi!`);
           } catch (fetchErr) {
             console.warn('Mijozga xabar yetib bormadi:', fetchErr.message);
           }
@@ -419,16 +450,19 @@ ${itemsText}
     }
 
     // Also send instant confirmation to customer in their language
-    if (order.telegram_user_id) {
+    const customerTargetId = order.telegram_user_id ? Number(order.telegram_user_id) : Number(this.adminChatId);
+    if (customerTargetId) {
       try {
-        const customer = await db.getUser(order.telegram_user_id);
+        const customer = await db.getUser(customerTargetId);
         const lang = customer?.language || 'uz';
 
         const customerNotice =
 `Rahmat, ${order.customer_name}! 🎉
 
 Sizning <b>#${order.order_number}</b> raqamli buyurtmangiz qabul qilindi.
-Tez orada administratorimiz siz bilan bog'lanadi.
+Holati: <b>🟡 Kutilmoqda (Oshxona tasdig'i kutilmoqda)</b>
+
+Tez orada oshxona buyurtmangizni tasdiqlaydi!
 
 💰 Jami: <b>${this.formatPrice(order.total_amount)}</b>
 💳 To'lov: <b>${this.formatPaymentName(order.payment_method)}</b>`;
@@ -437,6 +471,13 @@ Tez orada administratorimiz siz bilan bog'lanadi.
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            chat_id: customerTargetId,
+            text: customerNotice,
+            parse_mode: 'HTML'
+          })
+        });
+      } catch (e) {}
+    }
             chat_id: order.telegram_user_id,
             text: customerNotice,
             parse_mode: 'HTML'

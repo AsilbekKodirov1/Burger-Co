@@ -601,6 +601,30 @@ async function loadUserOrders(phone, telegramId) {
   if (allCombinedOrders.length > 0) {
     localStorage.setItem('burger_my_orders', JSON.stringify(allCombinedOrders.slice(0, 30)));
     renderAccountOrders(allCombinedOrders);
+
+    // Refresh live status from server for active orders
+    const activeOrders = allCombinedOrders.filter(o => o.order_status !== 'delivered' && o.order_status !== 'cancelled');
+    if (activeOrders.length > 0) {
+      Promise.allSettled(
+        activeOrders.map(ao => fetch(`/api/orders/${ao.order_number}`).then(r => r.json()))
+      ).then(results => {
+        let changed = false;
+        results.forEach(res => {
+          if (res.status === 'fulfilled' && res.value?.ok && res.value?.data) {
+            const fresh = res.value.data;
+            const target = allCombinedOrders.find(o => o.order_number === fresh.order_number);
+            if (target && target.order_status !== fresh.order_status) {
+              target.order_status = fresh.order_status;
+              changed = true;
+            }
+          }
+        });
+        if (changed) {
+          localStorage.setItem('burger_my_orders', JSON.stringify(allCombinedOrders.slice(0, 30)));
+          renderAccountOrders(allCombinedOrders);
+        }
+      });
+    }
   } else {
     accountOrdersList.innerHTML = '<div class="loading-state"><p>Sizda hali buyurtmalar mavjud emas.</p></div>';
   }
