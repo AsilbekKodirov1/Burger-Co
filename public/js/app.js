@@ -418,16 +418,31 @@ const accInputPhone = document.getElementById('accInputPhone');
 const btnCancelEdit = document.getElementById('btnCancelEdit');
 const accountOrdersList = document.getElementById('accountOrdersList');
 
+let orderPollInterval = null;
+
 function openAccountModal() {
   triggerHaptic('medium');
   loadAccountDetails();
   accountModal.classList.add('active');
   document.body.style.overflow = 'hidden';
+
+  if (!orderPollInterval) {
+    orderPollInterval = setInterval(() => {
+      const localPhone = localStorage.getItem('burger_user_phone');
+      const user = tg?.initDataUnsafe?.user;
+      const tid = user?.id || localStorage.getItem('burger_user_tid');
+      loadUserOrders(localPhone, tid);
+    }, 4000);
+  }
 }
 
 function closeAccountModal() {
   accountModal.classList.remove('active');
   document.body.style.overflow = '';
+  if (orderPollInterval) {
+    clearInterval(orderPollInterval);
+    orderPollInterval = null;
+  }
 }
 
 if (openAccountBtn) openAccountBtn.addEventListener('click', openAccountModal);
@@ -609,13 +624,15 @@ async function loadUserOrders(phone, telegramId) {
         activeOrders.map(ao => fetch(`/api/orders/${ao.order_number}`).then(r => r.json()))
       ).then(results => {
         let changed = false;
-        results.forEach(res => {
-          if (res.status === 'fulfilled' && res.value?.ok && res.value?.data) {
-            const fresh = res.value.data;
-            const target = allCombinedOrders.find(o => o.order_number === fresh.order_number);
-            if (target && target.order_status !== fresh.order_status) {
-              target.order_status = fresh.order_status;
-              changed = true;
+        results.forEach((res, idx) => {
+          if (res.status === 'fulfilled' && res.value?.ok) {
+            const fresh = res.value.data || (res.value.status ? { order_number: activeOrders[idx].order_number, order_status: res.value.status } : null);
+            if (fresh) {
+              const target = allCombinedOrders.find(o => o.order_number === fresh.order_number);
+              if (target && fresh.order_status && target.order_status !== fresh.order_status) {
+                target.order_status = fresh.order_status;
+                changed = true;
+              }
             }
           }
         });

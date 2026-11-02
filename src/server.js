@@ -25,7 +25,7 @@ app.all(['/api/webhook', '/webhook'], async (req, res) => {
 
   try {
     if (bot.bot) {
-      await bot.bot.handleUpdate(req.body, res);
+      await bot.bot.handleUpdate(req.body);
       if (!res.headersSent) {
         res.sendStatus(200);
       }

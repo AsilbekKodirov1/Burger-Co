@@ -99,6 +99,19 @@ router.get('/orders/:orderNumber', async (req, res) => {
   }
 });
 
+// Fast order status check
+router.get('/orders/:orderNumber/status', async (req, res) => {
+  try {
+    const order = await db.getOrder(req.params.orderNumber);
+    if (!order) {
+      return res.json({ ok: true, order_number: req.params.orderNumber, status: 'yangi' });
+    }
+    res.json({ ok: true, order_number: req.params.orderNumber, status: order.order_status || 'yangi' });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // Get user profile by telegram ID
 router.get('/user/:telegramId', async (req, res) => {
   try {

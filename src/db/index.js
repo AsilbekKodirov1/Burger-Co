@@ -144,8 +144,31 @@ class DatabaseService {
     this.memoryOrders = [];
     this.memoryUsers = [];
     this.memoryProducts = [...INITIAL_PRODUCTS];
+    this.statusOverrides = {};
     this.fallbackFile = path.join(os.tmpdir(), 'burger_orders.json');
     this.ensureFallbackStorage();
+  }
+
+  loadFallback() {
+    try {
+      if (fs.existsSync(this.fallbackFile)) {
+        const content = JSON.parse(fs.readFileSync(this.fallbackFile, 'utf8'));
+        if (Array.isArray(content.orders)) this.memoryOrders = content.orders;
+        if (Array.isArray(content.users)) this.memoryUsers = content.users;
+        if (content.statusOverrides) this.statusOverrides = Object.assign({}, this.statusOverrides, content.statusOverrides);
+      }
+    } catch (e) {}
+  }
+
+  saveFallback() {
+    try {
+      fs.writeFileSync(this.fallbackFile, JSON.stringify({
+        orders: this.memoryOrders,
+        users: this.memoryUsers,
+        products: this.memoryProducts,
+        statusOverrides: this.statusOverrides
+      }, null, 2));
+    } catch (e) {}
   }
 
   ensureFallbackStorage() {
@@ -411,9 +434,7 @@ class DatabaseService {
 
     // Save to memory & tmp file
     this.memoryOrders.push(orderRecord);
-    try {
-      fs.writeFileSync(this.fallbackFile, JSON.stringify({ orders: this.memoryOrders, users: this.memoryUsers, products: this.memoryProducts }, null, 2));
-    } catch (e) {}
+    this.saveFallback();
 
     return orderRecord;
   }
@@ -422,15 +443,27 @@ class DatabaseService {
     if (this.isPostgresConnected && this.pool) {
       try {
         const res = await this.pool.query('SELECT * FROM orders WHERE order_number = $1', [orderNumber]);
-        return res.rows[0] || null;
+        if (res.rows[0]) return res.rows[0];
       } catch (err) {
         console.error('PostgreSQL getOrder:', err.message);
       }
     }
-    return this.memoryOrders.find(o => o.order_number === orderNumber) || null;
+    this.loadFallback();
+    const order = this.memoryOrders.find(o => o.order_number === orderNumber);
+    if (order) {
+      if (this.statusOverrides[orderNumber]) {
+        order.order_status = this.statusOverrides[orderNumber];
+      }
+      return order;
+    }
+    if (this.statusOverrides[orderNumber]) {
+      return { order_number: orderNumber, order_status: this.statusOverrides[orderNumber] };
+    }
+    return null;
   }
 
   async updateOrderStatus(orderNumber, status) {
+    this.statusOverrides[orderNumber] = status;
     if (this.isPostgresConnected && this.pool) {
       try {
         await this.pool.query('UPDATE orders SET order_status = $1 WHERE order_number = $2', [status, orderNumber]);
@@ -439,15 +472,20 @@ class DatabaseService {
         console.error('PostgreSQL updateOrderStatus:', err.message);
       }
     }
+    this.loadFallback();
     const order = this.memoryOrders.find(o => o.order_number === orderNumber);
     if (order) {
       order.order_status = status;
-      try {
-        fs.writeFileSync(this.fallbackFile, JSON.stringify({ orders: this.memoryOrders, users: this.memoryUsers, products: this.memoryProducts }, null, 2));
-      } catch (e) {}
-      return true;
+    } else {
+      this.memoryOrders.push({
+        id: this.memoryOrders.length + 1,
+        order_number: orderNumber,
+        order_status: status,
+        created_at: new Date().toISOString()
+      });
     }
-    return false;
+    this.saveFallback();
+    return true;
   }
 }
 

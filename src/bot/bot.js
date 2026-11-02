@@ -94,18 +94,22 @@ class BotService {
     this.webAppUrl = webAppUrl || 'https://burger-co-pi.vercel.app';
 
     try {
-      this.bot = new Telegraf(token);
+      this.bot = new Telegraf(token, {
+        telegram: {
+          webhookReply: false
+        }
+      });
       this.registerHandlers();
       this.isInitialized = true;
     } catch (err) {
       console.warn('Telegram bot init error:', err.message);
     }
 
-    // Only launch long polling if NOT running on Vercel Serverless
-    if (!process.env.VERCEL) {
+    // Only launch long polling if explicitly requested via BOT_POLLING=true
+    if (process.env.BOT_POLLING === 'true') {
       this.bot.launch()
         .then(() => {
-          console.log('🤖 [Telegram Bot] @BurgerCoBot muvaffaqiyatli ishga tushdi (Long Polling)!');
+          console.log('🤖 [Telegram Bot] Polling rejimida ishga tushdi!');
         })
         .catch(err => {
           console.error('❌ [Telegram Bot] Ishga tushirishda xatolik:', err.message);
@@ -114,7 +118,7 @@ class BotService {
       process.once('SIGINT', () => this.bot?.stop('SIGINT'));
       process.once('SIGTERM', () => this.bot?.stop('SIGTERM'));
     } else {
-      console.log('⚡ [Telegram Bot] Vercel Serverless rejimida ishlamoqda.');
+      console.log('⚡ [Telegram Bot] Webhook rejimida ishlamoqda.');
     }
   }
 
@@ -313,18 +317,39 @@ class BotService {
 
       try {
         await ctx.answerCbQuery(`Holat: ${statusLabel}`);
-      } catch (e) {}
+      } catch (e) {
+        console.warn('answerCbQuery warning:', e.message);
+      }
 
       // Update admin message text
       try {
-        const currentText = ctx.callbackQuery.message.text || '';
-        const updatedText = currentText.replace(/Holati: .*/g, `Holati: <b>${statusLabel}</b>`);
+        const currentText = ctx.callbackQuery?.message?.text || '';
+        let updatedText = '';
+        if (currentText.includes('Holati:')) {
+          updatedText = currentText.replace(/Holati: .*/g, `Holati: <b>${statusLabel}</b>`);
+        } else {
+          updatedText = currentText + `\n\nHolati: <b>${statusLabel}</b>`;
+        }
+
+        const keyboardMarkup = nextButtons.length > 0 ? Markup.inlineKeyboard(nextButtons) : Markup.inlineKeyboard([]);
 
         await ctx.editMessageText(updatedText, {
           parse_mode: 'HTML',
-          ...(nextButtons.length > 0 ? Markup.inlineKeyboard(nextButtons) : {})
+          ...keyboardMarkup
         });
-      } catch (e) {}
+      } catch (e) {
+        console.warn('editMessageText HTML parse retry with plain text:', e.message);
+        try {
+          const currentText = ctx.callbackQuery?.message?.text || '';
+          const plainUpdatedText = currentText.replace(/Holati: .*/g, `Holati: ${statusLabel}`);
+          const keyboardMarkup = nextButtons.length > 0 ? Markup.inlineKeyboard(nextButtons) : Markup.inlineKeyboard([]);
+          await ctx.editMessageText(plainUpdatedText, {
+            ...keyboardMarkup
+          });
+        } catch (fallbackErr) {
+          console.error('editMessageText failed completely:', fallbackErr.message);
+        }
+      }
 
       // Send status notification to customer!
       let targetUserId = (customerId && customerId !== '0') ? Number(customerId) : null;

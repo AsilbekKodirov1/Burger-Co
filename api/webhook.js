@@ -19,7 +19,7 @@ module.exports = async (req, res) => {
       }
 
       if (bot.bot) {
-        await bot.bot.handleUpdate(req.body, res);
+        await bot.bot.handleUpdate(req.body);
         if (!res.headersSent) {
           res.status(200).send('OK');
         }
