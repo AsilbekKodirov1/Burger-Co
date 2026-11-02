@@ -72,6 +72,18 @@ router.post('/orders', async (req, res) => {
     // Save to PostgreSQL (with fallback)
     const savedOrder = await db.createOrder(orderData);
 
+    if (savedOrder.telegram_user_id && savedOrder.customer_phone) {
+      try {
+        await db.upsertUser({
+          telegram_id: savedOrder.telegram_user_id,
+          phone_number: savedOrder.customer_phone,
+          first_name: savedOrder.customer_name,
+          username: savedOrder.telegram_username,
+          state: 'ready'
+        });
+      } catch (e) {}
+    }
+
     // Notify Telegram Admin immediately
     await bot.notifyAdminNewOrder(savedOrder);
 

@@ -157,18 +157,15 @@ class BotService {
           first_name: ctx.from.first_name,
           username: ctx.from.username,
           language: 'uz',
-          state: 'ask_lang'
+          state: 'ready'
         });
       }
 
-      // If user doesn't have phone number yet, ask language and phone
-      if (!user.phone_number) {
-        await ctx.replyWithHTML(this.t('uz', 'choose_lang'), this.getLangKeyboard());
-      } else {
-        // User already registered
-        const lang = user.language || 'uz';
-        await ctx.replyWithHTML(this.t(lang, 'main_welcome'), this.getMainKeyboard(lang));
+      const lang = user?.language || 'uz';
+      if (!user?.phone_number) {
+        await ctx.replyWithHTML(this.t(lang, 'choose_lang'), this.getLangKeyboard());
       }
+      await ctx.replyWithHTML(this.t(lang, 'main_welcome'), this.getMainKeyboard(lang));
     });
 
     // Language selection callback
@@ -412,14 +409,18 @@ class BotService {
       .map(item => `  • <b>${item.quantity}x</b> ${item.name} — ${this.formatPrice(item.price * item.quantity)}`)
       .join('\n');
 
-    const customerLink = order.telegram_username
-      ? `@${order.telegram_username}`
-      : (order.customer_name || 'Noma\'lum');
+    const tgId = order.telegram_user_id ? String(order.telegram_user_id) : null;
+    const tgUsername = order.telegram_username ? `@${order.telegram_username}` : null;
+    const customerAccountInfo = tgId
+      ? `<a href="tg://user?id=${tgId}">${tgUsername || order.customer_name}</a>`
+      : (tgUsername || `Saytdan buyurtma`);
 
     const msg =
 `🔔 <b>YANGI BUYURTMA #${order.order_number}</b>
 
-👤 <b>Mijoz:</b> ${order.customer_name} (${customerLink})
+👤 <b>Mijoz:</b> ${order.customer_name}
+🆔 <b>Telegram ID:</b> <code>${tgId || 'Mavjud emas'}</code>
+📱 <b>Telegram akkaunt:</b> ${customerAccountInfo}
 📞 <b>Telefon:</b> <code>${order.customer_phone}</code>
 📍 <b>Manzil:</b> ${order.customer_address}
 ${order.notes ? `📝 <b>Izoh:</b> <i>${order.notes}</i>\n` : ''}💳 <b>To'lov turi:</b> ${this.formatPaymentName(order.payment_method)}
@@ -431,13 +432,14 @@ ${itemsText}
 💰 <b>Jami summa:</b> <b>${this.formatPrice(order.total_amount)}</b>
 ⏰ <b>Vaqt:</b> ${new Date(order.created_at || Date.now()).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}`;
 
-    const customerId = order.telegram_user_id || '0';
+    const customerId = tgId || '0';
     const keyboard = Markup.inlineKeyboard([
       [
         Markup.button.callback('✅ Qabul qilish', `status:${order.order_number}:${customerId}:accepted`),
         Markup.button.callback('🛵 Kuryerda', `status:${order.order_number}:${customerId}:delivering`),
       ],
       [
+        Markup.button.callback('🏁 Yetkazildi', `status:${order.order_number}:${customerId}:delivered`),
         Markup.button.callback('❌ Bekor qilish', `status:${order.order_number}:${customerId}:cancelled`)
       ]
     ]);
