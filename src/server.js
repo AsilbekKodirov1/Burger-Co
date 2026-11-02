@@ -18,16 +18,25 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Telegram Webhook endpoint (for Vercel serverless)
-app.post('/api/webhook', async (req, res) => {
+app.all(['/api/webhook', '/webhook'], async (req, res) => {
+  if (req.method === 'GET') {
+    return res.status(200).send('Burger & Co. Webhook is active! 🚀');
+  }
+
   try {
     if (bot.bot) {
       await bot.bot.handleUpdate(req.body, res);
+      if (!res.headersSent) {
+        res.sendStatus(200);
+      }
     } else {
       res.sendStatus(200);
     }
   } catch (err) {
     console.error('Webhook xatosi:', err);
-    res.sendStatus(200);
+    if (!res.headersSent) {
+      res.sendStatus(200);
+    }
   }
 });
 

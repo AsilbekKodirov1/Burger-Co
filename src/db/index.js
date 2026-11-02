@@ -163,8 +163,8 @@ class DatabaseService {
   }
 
   async init(connectionString) {
-    if (!connectionString) {
-      console.warn('💡 [Database] DATABASE_URL kiritilmagan. Xavfsiz xotira (memory/tmp) rejimi faol.');
+    if (!connectionString || (process.env.VERCEL && connectionString.includes('localhost'))) {
+      console.warn('💡 [Database] DATABASE_URL kiritilmagan yoki localhost. Xavfsiz xotira (memory/tmp) rejimi faol.');
       return;
     }
 
