@@ -77,6 +77,9 @@ async function prefillUserData() {
 
   if (!tg?.initDataUnsafe?.user) return;
   const user = tg.initDataUnsafe.user;
+  if (user?.id) {
+    localStorage.setItem('burger_user_tid', user.id);
+  }
 
   if (nameInput && !nameInput.value) {
     const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
