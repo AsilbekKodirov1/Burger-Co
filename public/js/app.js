@@ -338,7 +338,7 @@ orderForm.addEventListener('submit', async (e) => {
     payment_method: selectedPayment,
     notes: document.getElementById('orderNotes').value.trim(),
     items: items,
-    telegram_user_id: tg?.initDataUnsafe?.user?.id || null,
+    telegram_user_id: tg?.initDataUnsafe?.user?.id || localStorage.getItem('burger_user_tid') || null,
     telegram_username: tg?.initDataUnsafe?.user?.username || null
   };
 

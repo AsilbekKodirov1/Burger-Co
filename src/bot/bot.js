@@ -351,15 +351,12 @@ class BotService {
         }
       }
 
-      // Send status notification to customer!
+      // Send status notification EXCLUSIVELY to the customer who placed the order!
       let targetUserId = (customerId && customerId !== '0') ? Number(customerId) : null;
       if (!targetUserId) {
         const order = await db.getOrder(orderNumber);
         if (order && order.telegram_user_id) {
           targetUserId = Number(order.telegram_user_id);
-        } else {
-          // Fallback to admin so user testing still receives the notification
-          targetUserId = Number(this.adminChatId);
         }
       }
 
@@ -474,8 +471,8 @@ ${itemsText}
       }
     }
 
-    // Also send instant confirmation to customer in their language
-    const customerTargetId = order.telegram_user_id ? Number(order.telegram_user_id) : Number(this.adminChatId);
+    // Also send instant confirmation EXCLUSIVELY to customer if they have telegram_user_id
+    const customerTargetId = order.telegram_user_id ? Number(order.telegram_user_id) : null;
     if (customerTargetId) {
       try {
         const customer = await db.getUser(customerTargetId);
